@@ -1,0 +1,20 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: stable
+    hooks:
+      - id: black
+  - repo: https://github.com/pycqa/isort
+    rev: stable
+    hooks:
+      - id: isort
+  - repo: https://gitlab.com/pylint-dev/pylint
+    rev: v3.3.8 # Укажите нужную версию pylint
+    hooks:
+      - id: pylint
+  - repo: local
+    hooks:
+      - id: check-trailing spaces
+        name: Check trailing spaces
+        entry: check-trailing-space
+        language: python
+        files: .*\.(py|txt)$
