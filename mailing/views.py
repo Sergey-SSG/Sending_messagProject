@@ -6,8 +6,7 @@ from django.views.generic import ListView, DetailView, CreateView, UpdateView, D
 from django.urls import reverse_lazy
 from .models import Recipient, Message, Mailing, MailingAttempt
 from .forms import RecipientForm, MessageForm, MailingForm
-from django.db.models import Count
-from django.utils import timezone
+
 
 
 class HomeView(TemplateView):
@@ -18,6 +17,10 @@ class HomeView(TemplateView):
         context['total_mailings'] = Mailing.objects.count()
         context['active_mailings'] = Mailing.objects.filter(status='started').count()
         context['unique_recipients'] = Recipient.objects.count()
+        context['latest_active_mailings'] = (
+            Mailing.objects.filter(status='started')
+            .order_by('-start_time')[:5]
+        )
         return context
 
 

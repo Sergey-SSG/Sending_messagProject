@@ -2,9 +2,24 @@
 {% block title %}Главная{% endblock %}
 {% block content %}
 <h1>Статистика</h1>
-<ul class="list-group">
+<ul class="list-group mb-4">
     <li class="list-group-item">Всего рассылок: {{ total_mailings }}</li>
     <li class="list-group-item">Активных рассылок: {{ active_mailings }}</li>
     <li class="list-group-item">Уникальных получателей: {{ unique_recipients }}</li>
 </ul>
+
+<h2>Последние активные рассылки</h2>
+{% if latest_active_mailings %}
+    <ul class="list-group">
+        {% for mailing in latest_active_mailings %}
+            <li class="list-group-item">
+                <strong>Начало:</strong> {{ mailing.start_time|date:"d.m.Y H:i" }},
+                <strong>Окончание:</strong> {{ mailing.end_time|date:"d.m.Y H:i" }},
+                <strong>Статус:</strong> {{ mailing.get_status_display }}
+            </li>
+        {% endfor %}
+    </ul>
+{% else %}
+    <p>Нет активных рассылок.</p>
+{% endif %}
 {% endblock %}
