@@ -1,0 +1,40 @@
+{% extends "mailing/base.html" %}
+{% load custom_filters %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h2>{{ title }}</h2>
+<a href="{{ create_url }}" class="btn btn-primary mb-3">Создать</a>
+<table class="table table-bordered table-hover">
+    <thead>
+    <tr>
+        {% for header in headers %}
+        <th>{{ header }}</th>
+        {% endfor %}
+        <th>Действия</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for object in object_list %}
+    <tr>
+        {% for field in fields %}
+        <td>{{ object|safe_getattr:field }}</td>
+        {% endfor %}
+        <td>
+            <a href="{{ object.pk }}/update/" class="btn btn-sm btn-warning">Редактировать</a>
+            <a href="{{ object.pk }}/delete/" class="btn btn-sm btn-danger">Удалить</a>
+
+            {% if extra_action %}
+            <form action="{{ object.pk }}/{{ extra_action.url_suffix }}/" method="post" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-success"
+                    {% if object.status == 'started' %}disabled{% endif %}>
+                {{ extra_action.label }}
+                </button>
+            </form>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endblock %}
