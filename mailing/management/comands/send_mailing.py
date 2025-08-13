@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand, CommandError
 from mailing.models import Mailing, MailingAttempt
 from django.core.mail import send_mail
+from django.conf import settings
 
 class Command(BaseCommand):
     help = 'Отправить рассылку по ID'
@@ -24,7 +25,7 @@ class Command(BaseCommand):
                 send_mail(
                     subject=mailing.message.subject,
                     message=mailing.message.body,
-                    from_email=None,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
                     recipient_list=[recipient.email],
                     fail_silently=False,
                 )
