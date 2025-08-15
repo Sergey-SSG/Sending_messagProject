@@ -1,23 +1,25 @@
-from django.core.management.base import BaseCommand, CommandError
-from mailing.models import Mailing, MailingAttempt
-from django.core.mail import send_mail
 from django.conf import settings
+from django.core.mail import send_mail
+from django.core.management.base import BaseCommand, CommandError
+
+from mailing.models import Mailing, MailingAttempt
+
 
 class Command(BaseCommand):
-    help = 'Отправить рассылку по ID'
+    help = "Отправить рассылку по ID"
 
     def add_arguments(self, parser):
-        parser.add_argument('mailing_id', type=int, help='ID рассылки для отправки')
+        parser.add_argument("mailing_id", type=int, help="ID рассылки для отправки")
 
     def handle(self, *args, **options):
-        mailing_id = options['mailing_id']
+        mailing_id = options["mailing_id"]
         try:
             mailing = Mailing.objects.get(pk=mailing_id)
         except Mailing.DoesNotExist:
             raise CommandError(f"Рассылка с ID {mailing_id} не найдена.")
 
-        if mailing.status == 'created':
-            mailing.status = 'started'
+        if mailing.status == "created":
+            mailing.status = "started"
             mailing.save()
 
         for recipient in mailing.recipients.all():
@@ -31,14 +33,14 @@ class Command(BaseCommand):
                 )
                 MailingAttempt.objects.create(
                     mailing=mailing,
-                    status='success',
-                    server_response='Отправлено успешно',
+                    status="success",
+                    server_response="Отправлено успешно",
                 )
                 self.stdout.write(f"Отправлено {recipient.email}")
             except Exception as e:
                 MailingAttempt.objects.create(
                     mailing=mailing,
-                    status='fail',
+                    status="fail",
                     server_response=str(e),
                 )
                 self.stderr.write(f"Ошибка при отправке {recipient.email}: {e}")

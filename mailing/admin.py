@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Recipient, Message, Mailing, MailingAttempt
+
+from .models import Mailing, MailingAttempt, Message, Recipient
 
 
 @admin.register(Recipient)
@@ -35,6 +36,10 @@ class MailingAttemptAdmin(admin.ModelAdmin):
     search_fields = ("server_response",)
 
     def short_server_response(self, obj):
-        return (obj.server_response[:50] + "...") if len(obj.server_response) > 50 else obj.server_response
+        return (
+            (obj.server_response[:50] + "...")
+            if len(obj.server_response) > 50
+            else obj.server_response
+        )
 
     short_server_response.short_description = "Ответ сервера"
