@@ -1,11 +1,17 @@
+from django.conf import settings
 from django.db import models
-from django.utils import timezone
 
 
 class Recipient(models.Model):
     email = models.EmailField('Электронная почта', unique=True)
     full_name = models.CharField('Полное имя', max_length=255)
     comment = models.TextField('Комментарий', blank=True)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='recipients',
+        verbose_name='Владелец'
+    )
 
     class Meta:
         verbose_name = 'Получатель'
@@ -18,6 +24,13 @@ class Recipient(models.Model):
 class Message(models.Model):
     subject = models.CharField('Тема письма', max_length=255)
     body = models.TextField('Текст письма')
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='message',
+        verbose_name='Владелец'
+    )
 
     class Meta:
         verbose_name = 'Сообщение'
@@ -47,6 +60,13 @@ class Mailing(models.Model):
         Recipient,
         verbose_name='Получатели',
         related_name='mailings'
+    )
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='mailings',
+        verbose_name='Владелец'
     )
 
     class Meta:

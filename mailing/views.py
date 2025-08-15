@@ -1,43 +1,82 @@
 from django.contrib import messages
+from django.core.cache import cache
 from django.core.mail import send_mail
+from django.conf import settings
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page, cache_control
 from django.views.decorators.http import require_POST
 from django.views.generic import ListView, DetailView, CreateView, UpdateView, DeleteView, TemplateView
 from django.urls import reverse_lazy
+from django.contrib.auth.mixins import LoginRequiredMixin
+
 from .models import Recipient, Message, Mailing, MailingAttempt
 from .forms import RecipientForm, MessageForm, MailingForm
-from django.conf import settings
 
 
+# HomeView
+@method_decorator(cache_page(60 * 15), name='dispatch')  # Кеш страницы 15 минут
 class HomeView(TemplateView):
     template_name = 'mailing/home.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        # Базовая статистика
-        context['total_mailings'] = Mailing.objects.count()
-        context['active_mailings'] = Mailing.objects.filter(status='started').count()
-        context['unique_recipients'] = Recipient.objects.count()
 
-        # Последние активные рассылки
-        context['latest_active_mailings'] = (
-            Mailing.objects.filter(status='started')
-            .order_by('-start_time')[:5]
-        )
+        # Общая статистика с низкоуровневым кешем
+        total_mailings = cache.get('total_mailings')
+        if total_mailings is None:
+            total_mailings = Mailing.objects.count()
+            cache.set('total_mailings', total_mailings, 60*5)
 
-        # Статистика по попыткам отправки
-        attempts_stats = MailingAttempt.objects.aggregate(
-            success_count=Count('id', filter=Q(status='success')),
-            fail_count=Count('id', filter=Q(status='fail'))
-        )
-        context['success_count'] = attempts_stats['success_count']
-        context['fail_count'] = attempts_stats['fail_count']
+        active_mailings = cache.get('active_mailings_count')
+        if active_mailings is None:
+            active_mailings = Mailing.objects.filter(status='started').count()
+            cache.set('active_mailings_count', active_mailings, 60*5)
 
+        unique_recipients = cache.get('unique_recipients')
+        if unique_recipients is None:
+            unique_recipients = Recipient.objects.count()
+            cache.set('unique_recipients', unique_recipients, 60*5)
+
+        latest_active_mailings = cache.get('latest_active_mailings')
+        if latest_active_mailings is None:
+            latest_active_mailings = Mailing.objects.filter(status='started').order_by('-start_time')[:5]
+            cache.set('latest_active_mailings', latest_active_mailings, 60*5)
+
+        attempts_stats = cache.get('attempts_stats')
+        if attempts_stats is None:
+            attempts_stats = MailingAttempt.objects.aggregate(
+                success_count=Count('id', filter=Q(status='success')),
+                fail_count=Count('id', filter=Q(status='fail'))
+            )
+            cache.set('attempts_stats', attempts_stats, 60*5)
+
+        context.update({
+            'total_mailings': total_mailings,
+            'active_mailings': active_mailings,
+            'unique_recipients': unique_recipients,
+            'latest_active_mailings': latest_active_mailings,
+            'success_count': attempts_stats['success_count'],
+            'fail_count': attempts_stats['fail_count'],
+        })
         return context
 
 
-class RecipientListView(ListView):
+# OwnerQuerysetMixin
+class OwnerQuerysetMixin:
+    """Фильтрует queryset по владельцу, если пользователь не менеджер."""
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_superuser or user.groups.filter(name='Менеджеры').exists():
+            return qs
+        return qs.filter(owner=user)
+
+
+# Recipient CBV
+class RecipientListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
     model = Recipient
     template_name = 'mailing/list.html'
 
@@ -54,11 +93,37 @@ class RecipientListView(ListView):
         return context
 
 
-class RecipientDetailView(DetailView):
+@method_decorator(cache_control(public=False, max_age=60), name='dispatch')  # 1 минута у клиента
+class RecipientDetailView(LoginRequiredMixin, DetailView):
     model = Recipient
 
+    def get_object(self, queryset=None):
+        # Кешируем объект отдельно для текущего пользователя
+        key = f"recipient_{self.kwargs['pk']}_user_{self.request.user.id}"
+        recipient = cache.get(key)
+        if recipient is None:
+            recipient = super().get_object(queryset)
+            cache.set(key, recipient, 60)  # 1 минута
+        return recipient
 
-class RecipientCreateView(CreateView):
+
+class RecipientCreateView(LoginRequiredMixin, CreateView):
+    model = Recipient
+    form_class = RecipientForm
+    template_name = 'mailing/form.html'
+    success_url = reverse_lazy('mailing:recipient-list')
+
+    def form_valid(self, form):
+        form.instance.owner = self.request.user
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['cancel_url'] = self.request.META.get('HTTP_REFERER', reverse_lazy('mailing:recipient-list'))
+        return context
+
+
+class RecipientUpdateView(LoginRequiredMixin, OwnerQuerysetMixin, UpdateView):
     model = Recipient
     form_class = RecipientForm
     template_name = 'mailing/form.html'
@@ -70,19 +135,7 @@ class RecipientCreateView(CreateView):
         return context
 
 
-class RecipientUpdateView(UpdateView):
-    model = Recipient
-    form_class = RecipientForm
-    template_name = 'mailing/form.html'
-    success_url = reverse_lazy('mailing:recipient-list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['cancel_url'] = self.request.META.get('HTTP_REFERER', reverse_lazy('mailing:recipient-list'))
-        return context
-
-
-class RecipientDeleteView(DeleteView):
+class RecipientDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
     model = Recipient
     template_name = 'mailing/confirm_delete.html'
     success_url = reverse_lazy('mailing:recipient-list')
@@ -93,7 +146,8 @@ class RecipientDeleteView(DeleteView):
         return context
 
 
-class MessageListView(ListView):
+# Message CBV
+class MessageListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
     model = Message
     template_name = 'mailing/list.html'
 
@@ -110,7 +164,23 @@ class MessageListView(ListView):
         return context
 
 
-class MessageCreateView(CreateView):
+class MessageCreateView(LoginRequiredMixin, CreateView):
+    model = Message
+    form_class = MessageForm
+    template_name = 'mailing/form.html'
+    success_url = reverse_lazy('mailing:message-list')
+
+    def form_valid(self, form):
+        form.instance.owner = self.request.user
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['cancel_url'] = self.request.META.get('HTTP_REFERER', reverse_lazy('mailing:message-list'))
+        return context
+
+
+class MessageUpdateView(LoginRequiredMixin, OwnerQuerysetMixin, UpdateView):
     model = Message
     form_class = MessageForm
     template_name = 'mailing/form.html'
@@ -122,30 +192,19 @@ class MessageCreateView(CreateView):
         return context
 
 
-class MessageUpdateView(UpdateView):
-    model = Message
-    form_class = MessageForm
-    template_name = 'mailing/form.html'
-    success_url = reverse_lazy('mailing:message-list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['cancel_url'] = self.request.META.get('HTTP_REFERER', reverse_lazy('mailing:message-list'))
-        return context
-
-
-class MessageDeleteView(DeleteView):
+class MessageDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
     model = Message
     template_name = 'mailing/confirm_delete.html'
     success_url = reverse_lazy('mailing:message-list')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['cancel_url'] = self.request.META.get('HTTP_REFERER', reverse_lazy('mailing:recipient-list'))
+        context['cancel_url'] = self.request.META.get('HTTP_REFERER', reverse_lazy('mailing:message-list'))
         return context
 
 
-class MailingListView(ListView):
+# Mailing CBV
+class MailingListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
     model = Mailing
     template_name = 'mailing/list.html'
 
@@ -158,15 +217,28 @@ class MailingListView(ListView):
             'fields': ['start_time', 'end_time', 'status'],
             'update_url_name': 'mailing:mailing-update',
             'delete_url_name': 'mailing:mailing-delete',
-            'extra_action': {
-                'url_name': 'mailing:send_mailing',
-                'label': 'Отправить',
-            }
+            'extra_action': {'url_name': 'mailing:send_mailing', 'label': 'Отправить'}
         })
         return context
 
 
-class MailingCreateView(CreateView):
+class MailingCreateView(LoginRequiredMixin, CreateView):
+    model = Mailing
+    form_class = MailingForm
+    template_name = 'mailing/form.html'
+    success_url = reverse_lazy('mailing:mailing-list')
+
+    def form_valid(self, form):
+        form.instance.owner = self.request.user
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['cancel_url'] = self.request.META.get('HTTP_REFERER', reverse_lazy('mailing:mailing-list'))
+        return context
+
+
+class MailingUpdateView(LoginRequiredMixin, OwnerQuerysetMixin, UpdateView):
     model = Mailing
     form_class = MailingForm
     template_name = 'mailing/form.html'
@@ -178,29 +250,18 @@ class MailingCreateView(CreateView):
         return context
 
 
-class MailingUpdateView(UpdateView):
-    model = Mailing
-    form_class = MailingForm
-    template_name = 'mailing/form.html'
-    success_url = reverse_lazy('mailing:mailing-list')
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['cancel_url'] = self.request.META.get('HTTP_REFERER', reverse_lazy('mailing:mailing-list'))
-        return context
-
-
-class MailingDeleteView(DeleteView):
+class MailingDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
     model = Mailing
     template_name = 'mailing/confirm_delete.html'
     success_url = reverse_lazy('mailing:mailing-list')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['cancel_url'] = self.request.META.get('HTTP_REFERER', reverse_lazy('mailing:recipient-list'))
+        context['cancel_url'] = self.request.META.get('HTTP_REFERER', reverse_lazy('mailing:mailing-list'))
         return context
 
 
+# Send Mailing
 @require_POST
 def send_mailing(request, pk):
     mailing = get_object_or_404(Mailing, pk=pk)
@@ -225,7 +286,7 @@ def send_mailing(request, pk):
                 fail_silently=False,
             )
 
-            if result:  # send_mail возвращает количество успешно доставленных писем
+            if result:
                 MailingAttempt.objects.create(
                     mailing=mailing,
                     status='success',

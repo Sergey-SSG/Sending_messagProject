@@ -1,6 +1,7 @@
 {% extends "mailing/base.html" %}
 {% load custom_tags %}
 {% block title %}{{ title }}{% endblock %}
+
 {% block content %}
 <div class="container mt-4">
     <h1>{{ title }}</h1>
@@ -9,43 +10,49 @@
     {% if object_list %}
     <table class="table table-striped">
         <thead>
-        <tr>
-            {% for header in headers %}
-            <th>{{ header }}</th>
-            {% endfor %}
-            <th>Действия</th>
-        </tr>
+            <tr>
+                {% for header in headers %}
+                    <th>{{ header }}</th>
+                {% endfor %}
+                <th>Действия</th>
+            </tr>
         </thead>
         <tbody>
-        {% for object in object_list %}
-        <tr>
-            {% for field in fields %}
-            <td>{{ object|attr:field }}</td>
-            {% endfor %}
-            <td>
-                {% if update_url_name %}
-                <a href="{% url update_url_name object.pk %}" class="btn btn-sm btn-warning">Редактировать</a>
-                {% endif %}
-                {% if delete_url_name %}
-                <a href="{% url delete_url_name object.pk %}" class="btn btn-sm btn-danger">Удалить</a>
-                {% endif %}
-                {% if extra_action %}
-                <form action="{% url extra_action.url_name object.pk %}" method="post" style="display:inline;">
-                    {% csrf_token %}
-                    {% if object.status == 'created' %}
-                    <button type="submit" class="btn btn-sm btn-success">{{ extra_action.label }}</button>
+            {% for object in object_list %}
+            <tr>
+                {% for field in fields %}
+                <td>
+                    {% if detail_url_name and forloop.first %}
+                        <a href="{% url detail_url_name object.pk %}">{{ object|attr:field }}</a>
                     {% else %}
-                    <button type="submit" class="btn btn-sm btn-success" disabled>{{ extra_action.label }}</button>
+                        {{ object|attr:field }}
                     {% endif %}
-                </form>
-                {% endif %}
-            </td>
-        </tr>
-        {% endfor %}
+                </td>
+                {% endfor %}
+                <td>
+                    {% if update_url_name %}
+                        <a href="{% url update_url_name object.pk %}" class="btn btn-sm btn-warning">Редактировать</a>
+                    {% endif %}
+                    {% if delete_url_name %}
+                        <a href="{% url delete_url_name object.pk %}" class="btn btn-sm btn-danger">Удалить</a>
+                    {% endif %}
+                    {% if extra_action %}
+                        <form action="{% url extra_action.url_name object.pk %}" method="post" style="display:inline;">
+                            {% csrf_token %}
+                            {% if object.status == 'created' %}
+                                <button type="submit" class="btn btn-sm btn-success">{{ extra_action.label }}</button>
+                            {% else %}
+                                <button type="submit" class="btn btn-sm btn-success" disabled>{{ extra_action.label }}</button>
+                            {% endif %}
+                        </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p>Нет записей</p>
+        <p>Нет записей</p>
     {% endif %}
 </div>
 {% endblock %}

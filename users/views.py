@@ -6,7 +6,6 @@ from django.views.generic.edit import CreateView, UpdateView
 from .forms import CustomUserCreationForm, CustomUserChangeForm
 from .models import CustomUser
 
-
 class RegisterView(CreateView):
     template_name = 'users/register.html'
     form_class = CustomUserCreationForm
@@ -22,9 +21,7 @@ class RegisterView(CreateView):
         subject = 'Добро пожаловать в наш сервис'
         message = 'Спасибо, что зарегистрировались в нашем сервисе!'
         from_email = 'awesome.gauf@yandex.ru'
-        recipient_list = [user_email]
-        send_mail(subject, message, from_email, recipient_list)
-
+        send_mail(subject, message, from_email, [user_email])
 
 class ProfileUpdateView(LoginRequiredMixin, UpdateView):
     model = CustomUser
@@ -34,4 +31,3 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_object(self, queryset=None):
         return self.request.user
-
