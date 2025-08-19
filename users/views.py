@@ -54,7 +54,10 @@ class UserBlockView(LoginRequiredMixin, UserPassesTestMixin, View):
         user = CustomUser.objects.get(pk=pk)
         user.is_blocked = not user.is_blocked
         user.save()
-        messages.success(request, f"Пользователь {user.email} {'заблокирован' if user.is_blocked else 'разблокирован'}")
+        messages.success(
+            request,
+            f"Пользователь {user.email} {'заблокирован' if user.is_blocked else 'разблокирован'}",
+        )
         return redirect("users:user_list")
 
     def test_func(self):

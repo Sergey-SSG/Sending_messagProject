@@ -102,11 +102,12 @@ class RecipientListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
         return context
 
     def test_func(self):
-        return not self.request.user.groups.filter(name='Менеджеры').exists()
+        return not self.request.user.groups.filter(name="Менеджеры").exists()
 
 
 @method_decorator(
-cache_control(public=False, max_age=60), name="dispatch")  # 1 минута у клиента
+    cache_control(public=False, max_age=60), name="dispatch"
+)  # 1 минута у клиента
 class RecipientDetailView(LoginRequiredMixin, DetailView):
     model = Recipient
 
@@ -152,7 +153,7 @@ class RecipientUpdateView(LoginRequiredMixin, OwnerQuerysetMixin, UpdateView):
         return context
 
     def test_func(self):
-        return not self.request.user.groups.filter(name='Менеджеры').exists()
+        return not self.request.user.groups.filter(name="Менеджеры").exists()
 
 
 class RecipientDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
@@ -168,7 +169,7 @@ class RecipientDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
         return context
 
     def test_func(self):
-        return not self.request.user.groups.filter(name='Менеджеры').exists()
+        return not self.request.user.groups.filter(name="Менеджеры").exists()
 
 
 # Message CBV
@@ -191,7 +192,7 @@ class MessageListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
         return context
 
     def test_func(self):
-        return not self.request.user.groups.filter(name='Менеджеры').exists()
+        return not self.request.user.groups.filter(name="Менеджеры").exists()
 
 
 class MessageCreateView(LoginRequiredMixin, CreateView):
@@ -226,7 +227,7 @@ class MessageUpdateView(LoginRequiredMixin, OwnerQuerysetMixin, UpdateView):
         return context
 
     def test_func(self):
-        return not self.request.user.groups.filter(name='Менеджеры').exists()
+        return not self.request.user.groups.filter(name="Менеджеры").exists()
 
 
 class MessageDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
@@ -242,7 +243,7 @@ class MessageDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
         return context
 
     def test_func(self):
-        return not self.request.user.groups.filter(name='Менеджеры').exists()
+        return not self.request.user.groups.filter(name="Менеджеры").exists()
 
 
 # Mailing CBV
@@ -269,9 +270,14 @@ class MailingListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
         return context
 
     def get_queryset(self):
-        qs = super().get_queryset().select_related('message').prefetch_related('recipients')
+        qs = (
+            super()
+            .get_queryset()
+            .select_related("message")
+            .prefetch_related("recipients")
+        )
         # Менеджеры видят ВСЕ рассылки
-        if self.request.user.groups.filter(name='Менеджеры').exists():
+        if self.request.user.groups.filter(name="Менеджеры").exists():
             return qs
         return qs.filter(owner=self.request.user)
 
@@ -337,10 +343,10 @@ class MailingDisableView(LoginRequiredMixin, UserPassesTestMixin, View):
         mailing.is_active = False
         mailing.save()
         messages.success(request, f"Рассылка #{mailing.pk} отключена")
-        return redirect('mailing:mailing-list')
+        return redirect("mailing:mailing-list")
 
     def test_func(self):
-        return self.request.user.groups.filter(name='Менеджеры').exists()
+        return self.request.user.groups.filter(name="Менеджеры").exists()
 
 
 # Send Mailing
