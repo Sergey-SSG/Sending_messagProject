@@ -7,6 +7,8 @@
 </head>
 <body>
 
+{% load auth_extras %}
+
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4 shadow-sm">
     <div class="container">
         <a class="navbar-brand fw-bold" href="{% url 'mailing:home' %}">📨 Почтовая служба</a>
@@ -21,33 +23,45 @@
                 <li class="nav-item">
                     <a href="{% url 'mailing:recipient-list' %}" class="nav-link">Получатели</a>
                 </li>
+
+                <!-- Скрываем "Сообщения" для менеджеров -->
+                {% if not request.user|in_group:'Менеджеры' %}
                 <li class="nav-item">
                     <a href="{% url 'mailing:message-list' %}" class="nav-link">Сообщения</a>
                 </li>
+                {% endif %}
+
                 <li class="nav-item">
                     <a href="{% url 'mailing:mailing-list' %}" class="nav-link">Рассылки</a>
                 </li>
+
+                <!-- Пункт "Пользователи" только для менеджеров -->
+                {% if request.user|in_group:'Менеджеры' %}
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'users:user_list' %}">Пользователи</a>
+                </li>
+                {% endif %}
             </ul>
 
             <!-- Правое меню -->
             <ul class="navbar-nav">
                 {% if user.is_authenticated %}
-                    <li class="nav-item">
-                        <a class="btn btn-outline-light me-2" href="{% url 'users:profile_edit' %}">Профиль</a>
-                    </li>
-                    <li class="nav-item">
-                        <form action="{% url 'users:logout' %}" method="post" class="d-inline">
-                            {% csrf_token %}
-                            <button type="submit" class="btn btn-danger">Выйти</button>
-                        </form>
-                    </li>
+                <li class="nav-item">
+                    <a class="btn btn-outline-light me-2" href="{% url 'users:profile_edit' %}">Профиль</a>
+                </li>
+                <li class="nav-item">
+                    <form action="{% url 'users:logout' %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">Выйти</button>
+                    </form>
+                </li>
                 {% else %}
-                    <li class="nav-item">
-                        <a class="btn btn-outline-light me-2" href="{% url 'users:login' %}">Вход</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="btn btn-success" href="{% url 'users:register' %}">Регистрация</a>
-                    </li>
+                <li class="nav-item">
+                    <a class="btn btn-outline-light me-2" href="{% url 'users:login' %}">Вход</a>
+                </li>
+                <li class="nav-item">
+                    <a class="btn btn-success" href="{% url 'users:register' %}">Регистрация</a>
+                </li>
                 {% endif %}
             </ul>
         </div>
@@ -56,9 +70,9 @@
 
 <div class="container">
     {% if messages %}
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }} shadow-sm">{{ message }}</div>
-        {% endfor %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} shadow-sm">{{ message }}</div>
+    {% endfor %}
     {% endif %}
 
     {% block content %}

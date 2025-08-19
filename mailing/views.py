@@ -1,12 +1,13 @@
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.cache import cache
 from django.core.mail import send_mail
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils.decorators import method_decorator
+from django.views import View
 from django.views.decorators.cache import cache_control, cache_page
 from django.views.decorators.http import require_POST
 from django.views.generic import (CreateView, DeleteView, DetailView, ListView,
@@ -76,8 +77,9 @@ class OwnerQuerysetMixin:
         qs = super().get_queryset()
         user = self.request.user
         if user.is_superuser or user.groups.filter(name="Менеджеры").exists():
-            return qs
-        return qs.filter(owner=user)
+            return qs  # Менеджеры и суперпользователи видят всё
+
+        return qs.filter(owner=user)  # Обычные пользователи видят только своё
 
 
 # Recipient CBV
@@ -99,10 +101,12 @@ class RecipientListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
         )
         return context
 
+    def test_func(self):
+        return not self.request.user.groups.filter(name='Менеджеры').exists()
+
 
 @method_decorator(
-    cache_control(public=False, max_age=60), name="dispatch"
-)  # 1 минута у клиента
+cache_control(public=False, max_age=60), name="dispatch")  # 1 минута у клиента
 class RecipientDetailView(LoginRequiredMixin, DetailView):
     model = Recipient
 
@@ -147,6 +151,9 @@ class RecipientUpdateView(LoginRequiredMixin, OwnerQuerysetMixin, UpdateView):
         )
         return context
 
+    def test_func(self):
+        return not self.request.user.groups.filter(name='Менеджеры').exists()
+
 
 class RecipientDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
     model = Recipient
@@ -159,6 +166,9 @@ class RecipientDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
             "HTTP_REFERER", reverse_lazy("mailing:recipient-list")
         )
         return context
+
+    def test_func(self):
+        return not self.request.user.groups.filter(name='Менеджеры').exists()
 
 
 # Message CBV
@@ -179,6 +189,9 @@ class MessageListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
             }
         )
         return context
+
+    def test_func(self):
+        return not self.request.user.groups.filter(name='Менеджеры').exists()
 
 
 class MessageCreateView(LoginRequiredMixin, CreateView):
@@ -212,6 +225,9 @@ class MessageUpdateView(LoginRequiredMixin, OwnerQuerysetMixin, UpdateView):
         )
         return context
 
+    def test_func(self):
+        return not self.request.user.groups.filter(name='Менеджеры').exists()
+
 
 class MessageDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
     model = Message
@@ -225,6 +241,9 @@ class MessageDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
         )
         return context
 
+    def test_func(self):
+        return not self.request.user.groups.filter(name='Менеджеры').exists()
+
 
 # Mailing CBV
 class MailingListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
@@ -237,8 +256,8 @@ class MailingListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
             {
                 "title": "Список рассылок",
                 "create_url": reverse_lazy("mailing:mailing-create"),
-                "headers": ["Дата начала", "Дата окончания", "Статус"],
-                "fields": ["start_time", "end_time", "status"],
+                "headers": ["Дата начала", "Дата окончания", "Статус", "Активна"],
+                "fields": ["start_time", "end_time", "status", "is_active"],
                 "update_url_name": "mailing:mailing-update",
                 "delete_url_name": "mailing:mailing-delete",
                 "extra_action": {
@@ -248,6 +267,13 @@ class MailingListView(LoginRequiredMixin, OwnerQuerysetMixin, ListView):
             }
         )
         return context
+
+    def get_queryset(self):
+        qs = super().get_queryset().select_related('message').prefetch_related('recipients')
+        # Менеджеры видят ВСЕ рассылки
+        if self.request.user.groups.filter(name='Менеджеры').exists():
+            return qs
+        return qs.filter(owner=self.request.user)
 
 
 class MailingCreateView(LoginRequiredMixin, CreateView):
@@ -281,6 +307,11 @@ class MailingUpdateView(LoginRequiredMixin, OwnerQuerysetMixin, UpdateView):
         )
         return context
 
+    def test_func(self):
+        # Только владелец может редактировать
+        mailing = self.get_object()
+        return self.request.user == mailing.owner
+
 
 class MailingDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
     model = Mailing
@@ -293,6 +324,23 @@ class MailingDeleteView(LoginRequiredMixin, OwnerQuerysetMixin, DeleteView):
             "HTTP_REFERER", reverse_lazy("mailing:mailing-list")
         )
         return context
+
+    def test_func(self):
+        # Только владелец может удалять
+        mailing = self.get_object()
+        return self.request.user == mailing.owner
+
+
+class MailingDisableView(LoginRequiredMixin, UserPassesTestMixin, View):
+    def post(self, request, pk):
+        mailing = get_object_or_404(Mailing, pk=pk)
+        mailing.is_active = False
+        mailing.save()
+        messages.success(request, f"Рассылка #{mailing.pk} отключена")
+        return redirect('mailing:mailing-list')
+
+    def test_func(self):
+        return self.request.user.groups.filter(name='Менеджеры').exists()
 
 
 # Send Mailing

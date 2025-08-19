@@ -1,7 +1,11 @@
+from django.contrib import messages
 from django.contrib.auth import login
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.mail import send_mail
+from django.shortcuts import redirect
 from django.urls import reverse_lazy
+from django.views import View
+from django.views.generic import ListView
 from django.views.generic.edit import CreateView, UpdateView
 
 from .forms import CustomUserChangeForm, CustomUserCreationForm
@@ -34,3 +38,24 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_object(self, queryset=None):
         return self.request.user
+
+
+class UserListView(LoginRequiredMixin, UserPassesTestMixin, ListView):
+    model = CustomUser
+    template_name = "users/user_list.html"
+    context_object_name = "users"
+
+    def test_func(self):
+        return self.request.user.groups.filter(name="Менеджеры").exists()
+
+
+class UserBlockView(LoginRequiredMixin, UserPassesTestMixin, View):
+    def post(self, request, pk):
+        user = CustomUser.objects.get(pk=pk)
+        user.is_blocked = not user.is_blocked
+        user.save()
+        messages.success(request, f"Пользователь {user.email} {'заблокирован' if user.is_blocked else 'разблокирован'}")
+        return redirect("users:user_list")
+
+    def test_func(self):
+        return self.request.user.groups.filter(name="Менеджеры").exists()

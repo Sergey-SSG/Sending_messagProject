@@ -17,7 +17,7 @@ class Command(BaseCommand):
         user_group, _ = Group.objects.get_or_create(name="Пользователи")
 
         # Менеджеры — только просмотр всех моделей
-        for model in [Mailing, Message, Recipient, User]:
+        for model in [Mailing, Recipient, User]:
             ct = ContentType.objects.get_for_model(model)
             view_perm = Permission.objects.get(
                 codename=f"view_{model._meta.model_name}", content_type=ct
@@ -37,7 +37,7 @@ class Command(BaseCommand):
         if not User.objects.filter(email="admin@example.com").exists():
             user = User.objects.create_superuser(
                 email="admin@example.com",
-                password="12345678",  # поменяй пароль позже
+                password="12345678",
                 first_name="Admin",
                 last_name="Adminex",
             )

@@ -32,6 +32,7 @@ class CustomUserManager(BaseUserManager):
 class CustomUser(AbstractUser):
     username = None
     email = models.EmailField(unique=True, verbose_name="Email")
+    is_blocked = models.BooleanField(default=False, verbose_name="Заблокирован")
 
     avatar = models.ImageField(
         upload_to="users/avatars/",

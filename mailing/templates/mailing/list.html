@@ -1,58 +1,77 @@
 {% extends "mailing/base.html" %}
 {% load custom_tags %}
+{% load auth_extras %}
+
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
     <h1>{{ title }}</h1>
+    {% if create_url %}
     <a href="{{ create_url }}" class="btn btn-primary mb-3">Создать</a>
+    {% endif %}
 
     {% if object_list %}
     <table class="table table-striped">
         <thead>
-            <tr>
-                {% for header in headers %}
-                    <th>{{ header }}</th>
-                {% endfor %}
-                <th>Действия</th>
-            </tr>
+        <tr>
+            {% for header in headers %}
+            <th>{{ header }}</th>
+            {% endfor %}
+            <th>Действия</th>
+        </tr>
         </thead>
         <tbody>
-            {% for object in object_list %}
-            <tr>
-                {% for field in fields %}
-                <td>
-                    {% if detail_url_name and forloop.first %}
-                        <a href="{% url detail_url_name object.pk %}">{{ object|attr:field }}</a>
-                    {% else %}
-                        {{ object|attr:field }}
-                    {% endif %}
-                </td>
-                {% endfor %}
-                <td>
-                    {% if update_url_name %}
-                        <a href="{% url update_url_name object.pk %}" class="btn btn-sm btn-warning">Редактировать</a>
-                    {% endif %}
-                    {% if delete_url_name %}
-                        <a href="{% url delete_url_name object.pk %}" class="btn btn-sm btn-danger">Удалить</a>
-                    {% endif %}
-                    {% if extra_action %}
-                        <form action="{% url extra_action.url_name object.pk %}" method="post" style="display:inline;">
-                            {% csrf_token %}
-                            {% if object.status == 'created' %}
-                                <button type="submit" class="btn btn-sm btn-success">{{ extra_action.label }}</button>
-                            {% else %}
-                                <button type="submit" class="btn btn-sm btn-success" disabled>{{ extra_action.label }}</button>
-                            {% endif %}
-                        </form>
-                    {% endif %}
-                </td>
-            </tr>
+        {% for object in object_list %}
+        <tr>
+            {% for field in fields %}
+            <td>
+                {% if detail_url_name and forloop.first %}
+                <a href="{% url detail_url_name object.pk %}">{{ object|attr:field }}</a>
+                {% else %}
+                {{ object|attr:field }}
+                {% endif %}
+            </td>
             {% endfor %}
+            <td style="white-space: nowrap;">
+                <!-- Для обычных пользователей -->
+                {% if not request.user|in_group:'Менеджеры' %}
+                {% if update_url_name %}
+                <a href="{% url update_url_name object.pk %}" class="btn btn-sm btn-warning mr-2">Редактировать</a>
+                {% endif %}
+                {% if delete_url_name %}
+                <a href="{% url delete_url_name object.pk %}" class="btn btn-sm btn-danger mr-2">Удалить</a>
+                {% endif %}
+                {% endif %}
+
+                <!-- Кнопка "Отправить" для создателей рассылок -->
+                {% if extra_action and extra_action.url_name and not request.user|in_group:'Менеджеры' %}
+                <form action="{% url extra_action.url_name object.pk %}" method="post" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-success mr-2"
+                            {% if object.status != 'created' %}disabled{% endif %}>
+                        {{ extra_action.label }}
+                    </button>
+                </form>
+                {% endif %}
+
+                <!-- Кнопка "Отключить" для менеджеров -->
+                {% if request.user|in_group:'Менеджеры' %}
+                <form method="post" action="{% url 'mailing:mailing-disable' object.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-warning"
+                            {% if not object.is_active %}disabled{% endif %}>
+                        {% if object.is_active %}Отключить{% else %}Отключена{% endif %}
+                    </button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
         </tbody>
     </table>
     {% else %}
-        <p>Нет записей</p>
+    <p>Нет записей</p>
     {% endif %}
 </div>
 {% endblock %}

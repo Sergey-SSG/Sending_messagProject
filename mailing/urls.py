@@ -5,7 +5,7 @@ from .views import (HomeView, MailingCreateView, MailingDeleteView,
                     MessageDeleteView, MessageListView, MessageUpdateView,
                     RecipientCreateView, RecipientDeleteView,
                     RecipientDetailView, RecipientListView,
-                    RecipientUpdateView, send_mailing)
+                    RecipientUpdateView, send_mailing, MailingDisableView)
 
 app_name = "mailing"
 
@@ -43,4 +43,5 @@ urlpatterns = [
         "mailings/<int:pk>/delete/", MailingDeleteView.as_view(), name="mailing-delete"
     ),
     path("mailings/<int:pk>/send/", send_mailing, name="send_mailing"),
+    path('mailing/<int:pk>/disable/', MailingDisableView.as_view(), name='mailing-disable'),
 ]

@@ -69,6 +69,8 @@ class Mailing(models.Model):
         verbose_name="Владелец",
     )
 
+    is_active = models.BooleanField(default=True, verbose_name="Активна")
+
     class Meta:
         verbose_name = "Рассылка"
         verbose_name_plural = "Рассылки"
